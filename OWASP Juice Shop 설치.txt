@@ -1,0 +1,46 @@
+
+# 프로젝트 설정
+1) 워크스페이스 설정
+C:\>mkdir workspace
+C:\>cd workspace
+
+
+#NVM 설치 및 NodeJS설치
+1) 다운로드: https://github.com/coreybutler/nvm-windows
+ - nvm-setup.exe
+ - 설치 경로 수정: C:\nvm
+2) nodeJs설치
+C:\nvm>nvm version          #현재 nvm 버전 확인
+C:\nvm>nvm list available    # 설치 가능한 Node.js 버전 확인
+C:\nvm>nvm install 24.13.0 # Node.js 24.13.0설치   
+           nvm install 22.22.0
+C:\nvm> nvm list                  # 설치된 Node.js 버전 목록 확인
+C:\nvm> nvm use 24.13.0    # 특정 버전 사용 설정
+C:\nvm> node -v                   # 현재 Node.js 버전 확인
+C:\nvm> npm -v                   # 현재 npm 버전 확인
+
+*오류: PS C:\Users\user> npm -v
+npm : 이 시스템에서 스크립트를 실행할 수 없으므로 C:\nvm4w\nodejs\npm.ps1 파일을 로드할 수 없습니다. 자세한 내용은 about_Execution_Policies(h
+    + CategoryInfo          : 보안 오류: (:) [], PSSecurityException
+    + FullyQualifiedErrorId : UnauthorizedAccess
+
+* 해결책:
+Set-ExecutionPolicy RemoteSigned -Scope CurrentUser
+- 명령어의 의미
+Set-ExecutionPolicy: PowerShell 스크립트 실행 권한을 설정하는 명령어
+RemoteSigned: 로컬에서 작성한 스크립트는 실행 허용하되, 인터넷에서 다운로드한 스크립트는 신뢰할 수 있는 게시자의 서명이 있는 경우에만 실행하도록 하는 설정
+-Scope CurrentUser: 시스템 전체가 아닌 현재 로그인한 사용자에게만 이 정책을 적용
+
+
+3. Visual Studio Code 설치
+- https://code.visualstudio.com/
+- C:\Microsoft VS Code
+
+4. juice-shop 다운로드
+- https://github.com/juice-shop/juice-shop/releases/tag/v19.1.1
+- Packaged Distributions 다운로드
+- juice-shop-19.1.1_node24_win32_x64.zip
+
+npm start
+
+브라우저:  http://localhost:3000
