@@ -51,17 +51,11 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
         autoIncrement: true
       },
 
-      /**
-       * 개선 대상: comment
-       * 기존 sanitize 방식 → escapeHtml 기반 출력 인코딩
-       */
+   
       comment: {
         type: DataTypes.STRING,
         set (comment: string) {
-          /**
-           * Juice Shop Persisted XSS 챌린지 판정 로직은
-           * "원본 입력값" 기준으로만 수행
-           */
+     
           if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
             challengeUtils.solveIf(
               challenges.persistedXssFeedbackChallenge,
@@ -74,10 +68,7 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
             )
           }
 
-          /**
-           * ★ 핵심 개선 포인트
-           * HTML 실행 불가능하도록 출력 인코딩
-           */
+    
           const safeComment = escapeHtml(comment)
           this.setDataValue('comment', safeComment)
         }
@@ -102,3 +93,4 @@ const FeedbackModelInit = (sequelize: Sequelize) => {
 }
 
 export { Feedback as FeedbackModel, FeedbackModelInit }
+
