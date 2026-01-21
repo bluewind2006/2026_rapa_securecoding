@@ -1,0 +1,168 @@
+xxe_paload.xml
+<?xml version="1.0"?>
+<!DOCTYPE xxe [
+<!ELEMENT xxe ANY >
+<!ENTITY xxe SYSTEM "file:///c:/Windows/system.ini" >]><xxe>&xxe;</xxe>
+
+
+-------------------------------------------------
+import fs from 'node:fs'
+import path from 'node:path'
+import os from 'node:os'
+import unzipper from 'unzipper'
+import libxml from 'libxmljs2'
+import yaml from 'js-yaml'
+import fileType from 'file-type'
+import { Request, Response, NextFunction } from 'express'
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+const UPLOAD_ROOT = path.resolve('uploads/complaints')
+
+const ALLOWED_EXTENSIONS = ['pdf', 'zip', 'xml', 'yml', 'yaml']
+
+const ALLOWED_MIME: Record<string, string[]> = {
+  pdf: ['application/pdf'],
+  zip: ['application/zip'],
+  xml: ['application/xml', 'text/xml'],
+  yml: ['application/x-yaml', 'text/yaml'],
+  yaml: ['application/x-yaml', 'text/yaml']
+}
+
+function reject(res: Response, message: string, code = 400) {
+  return res.status(code).json({ error: message })
+}
+
+function ensureUploadDir() {
+  if (!fs.existsSync(UPLOAD_ROOT)) {
+    fs.mkdirSync(UPLOAD_ROOT, { recursive: true })
+  }
+}
+
+function ensureFileIsPassed(req: Request, res: Response, next: NextFunction) {
+  if (!req.file) {
+    return reject(res, 'File is not passed')
+  }
+  next()
+}
+
+function checkUploadSize(req: Request, res: Response, next: NextFunction) {
+  const file = req.file!
+  if (file.size > MAX_FILE_SIZE) {
+    return reject(res, 'File size exceeds limit', 413)
+  }
+  next()
+}
+
+async function checkFileType(req: Request, res: Response, next: NextFunction) {
+  const file = req.file!
+  const ext = path.extname(file.originalname).slice(1).toLowerCase()
+
+  if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    return reject(res, 'Unsupported file extension')
+  }
+
+  const detected = await fileType.fromBuffer(file.buffer)
+  if (
+    !detected ||
+    !ALLOWED_MIME[ext].includes(detected.mime)
+  ) {
+    return reject(res, 'File type mismatch detected')
+  }
+
+  next()
+}
+
+async function handleZipFileUpload(req: Request, res: Response, next: NextFunction) {
+  const file = req.file!
+  if (!file.originalname.toLowerCase().endsWith('.zip')) {
+    return next()
+  }
+
+  ensureUploadDir()
+
+  const zipStream = unzipper.Parse()
+
+  zipStream.on('entry', entry => {
+    const resolvedPath = path.resolve(UPLOAD_ROOT, entry.path)
+
+    if (!resolvedPath.startsWith(UPLOAD_ROOT)) {
+      entry.autodrain()
+      return
+    }
+
+    entry.pipe(fs.createWriteStream(resolvedPath))
+  })
+
+  zipStream.on('error', err => next(err))
+  zipStream.on('close', () => res.status(204).end())
+
+  zipStream.end(file.buffer)
+}
+
+/* ==================================================
+ *  XML 업로드 (XXE 완전 제거)
+ * ================================================== */
+function handleXmlUpload(req: Request, res: Response, next: NextFunction) {
+  const file = req.file!
+  if (!file.originalname.toLowerCase().endsWith('.xml')) {
+    return next()
+  }
+
+  const xmlData = file.buffer.toString()
+
+  if (/<!DOCTYPE/i.test(xmlData)) {
+    return reject(res, 'DOCTYPE is not allowed in XML files')
+  }
+
+  try {
+    libxml.parseXml(xmlData, {
+      doctype: false,
+      dtdload: false,
+      dtdattr: false,
+      noent: false, 
+      nonet: true,
+      noblanks: true
+    })
+
+    return res.status(410).json({
+      error: 'XML upload is disabled for security reasons'
+    })
+  } catch {
+    return reject(res, 'Invalid XML file')
+  }
+}
+
+function handleYamlUpload(req: Request, res: Response, next: NextFunction) {
+  const file = req.file!
+  const name = file.originalname.toLowerCase()
+
+  if (!name.endsWith('.yml') && !name.endsWith('.yaml')) {
+    return next()
+  }
+
+  try {
+    yaml.load(file.buffer.toString(), {
+      schema: yaml.FAILSAFE_SCHEMA 
+    })
+
+    return res.status(410).json({
+      error: 'YAML upload is disabled for security reasons'
+    })
+  } catch {
+    return res.status(400).json({
+      error: 'Invalid YAML file'
+    })
+  }
+}
+
+/* ==================================================
+ * exports
+ * ================================================== */
+export {
+  ensureFileIsPassed,
+  checkUploadSize,
+  checkFileType,
+  handleZipFileUpload,
+  handleXmlUpload,
+  handleYamlUpload
+}
