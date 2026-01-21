@@ -1,0 +1,104 @@
+/*
+ * Copyright (c) 2014-2026 Bjoern Kimminich & the OWASP Juice Shop contributors.
+ * SPDX-License-Identifier: MIT
+ */
+
+/* jslint node: true */
+import * as utils from '../lib/utils'
+import * as challengeUtils from '../lib/challengeUtils'
+import {
+  Model,
+  type InferAttributes,
+  type InferCreationAttributes,
+  DataTypes,
+  type CreationOptional,
+  type Sequelize
+} from 'sequelize'
+import { challenges } from '../data/datacache'
+
+/**
+ * HTML Output Encoding
+ * Persisted XSS 방어용
+ */
+function escapeHtml (input: string): string {
+  return input
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+class Feedback extends Model<
+InferAttributes<Feedback>,
+InferCreationAttributes<Feedback>
+> {
+  declare UserId: number | null
+  declare id: CreationOptional<number>
+  declare comment: string
+  declare rating: number
+}
+
+const FeedbackModelInit = (sequelize: Sequelize) => {
+  Feedback.init(
+    {
+      UserId: {
+        type: DataTypes.INTEGER
+      },
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true
+      },
+
+      /**
+       * 개선 대상: comment
+       * 기존 sanitize 방식 → escapeHtml 기반 출력 인코딩
+       */
+      comment: {
+        type: DataTypes.STRING,
+        set (comment: string) {
+          /**
+           * Juice Shop Persisted XSS 챌린지 판정 로직은
+           * "원본 입력값" 기준으로만 수행
+           */
+          if (utils.isChallengeEnabled(challenges.persistedXssFeedbackChallenge)) {
+            challengeUtils.solveIf(
+              challenges.persistedXssFeedbackChallenge,
+              () => {
+                return utils.contains(
+                  comment,
+                  '<iframe src="javascript:alert(`xss`)">'
+                )
+              }
+            )
+          }
+
+          /**
+           * ★ 핵심 개선 포인트
+           * HTML 실행 불가능하도록 출력 인코딩
+           */
+          const safeComment = escapeHtml(comment)
+          this.setDataValue('comment', safeComment)
+        }
+      },
+
+      rating: {
+        type: DataTypes.INTEGER,
+        allowNull: false,
+        set (rating: number) {
+          this.setDataValue('rating', rating)
+          challengeUtils.solveIf(challenges.zeroStarsChallenge, () => {
+            return Number(rating) === 0
+          })
+        }
+      }
+    },
+    {
+      tableName: 'Feedbacks',
+      sequelize
+    }
+  )
+}
+
+export { Feedback as FeedbackModel, FeedbackModelInit }
