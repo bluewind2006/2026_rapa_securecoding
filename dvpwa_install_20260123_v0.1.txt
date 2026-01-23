@@ -186,12 +186,12 @@ superadmin/superadmin
 
 | OWASP 카테고리                   
 | ------------------------------ 
-| A1 – Injection                 | SQL Injection    |
-| A2 – Broken Authentication     | Session Fixation |
-| A3 – Sensitive Data Exposure   | MD5 비밀번호         |
-| A7 – Cross-Site Scripting      | Stored XSS       |
-| A5 – Security Misconfiguration | 에러 메시지 노출        |
-| A8 – CSRF                      | 폼 검증 미흡          |
+| A1 – Injection                 
+| A2 – Broken Authentication     
+| A3 – Sensitive Data Exposure   
+| A7 – Cross-Site Scripting      
+| A5 – Security Misconfiguration 
+| A8 – CSRF                     
 
 
 
@@ -212,7 +212,7 @@ async def evaluate(request: Request):
         if not student or not course:
             raise HTTPNotFound()
 
-        # 1. 필수 값 체크 (None / 빈 값 방지)
+      
         if raw_point is None or raw_point == '':
             return {
                 'errors': {'point': 'This field is required'},
@@ -220,7 +220,7 @@ async def evaluate(request: Request):
                 'student': student
             }
 
-        # 2. 타입 변환 (서버 안정성 확보용)
+       
         try:
             point = int(raw_point)
         except (ValueError, TypeError):
@@ -230,10 +230,11 @@ async def evaluate(request: Request):
                 'student': student
             }
 
-        # 3. DB 저장 (SQL Injection 여부는 DAO에서 결정됨)
+       
         await Mark.create(conn, student_id, course_id, point)
 
     raise HTTPFound(f'/courses/{course_id}')
+
 
 
 
