@@ -195,3 +195,45 @@ superadmin/superadmin
 
 
 
+
+
+@template('evaluate.jinja2')
+async def evaluate(request: Request):
+    app: Application = request.app
+    student_id = int(request.match_info['student_id'])
+    course_id = int(request.match_info['course_id'])
+
+    data = await request.post()
+    raw_point = data.get('point')
+
+    async with app['db'].acquire() as conn:
+        student = await Student.get(conn, student_id)
+        course = await Course.get(conn, course_id)
+        if not student or not course:
+            raise HTTPNotFound()
+
+        # 1. 필수 값 체크 (None / 빈 값 방지)
+        if raw_point is None or raw_point == '':
+            return {
+                'errors': {'point': 'This field is required'},
+                'course': course,
+                'student': student
+            }
+
+        # 2. 타입 변환 (서버 안정성 확보용)
+        try:
+            point = int(raw_point)
+        except (ValueError, TypeError):
+            return {
+                'errors': {'point': 'Invalid number'},
+                'course': course,
+                'student': student
+            }
+
+        # 3. DB 저장 (SQL Injection 여부는 DAO에서 결정됨)
+        await Mark.create(conn, student_id, course_id, point)
+
+    raise HTTPFound(f'/courses/{course_id}')
+
+
+
