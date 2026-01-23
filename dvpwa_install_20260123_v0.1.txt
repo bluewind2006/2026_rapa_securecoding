@@ -184,5 +184,14 @@ Step 7:  서버 실행
 
 superadmin/superadmin
 
+| OWASP 카테고리                   
+| ------------------------------ 
+| A1 – Injection                 | SQL Injection    |
+| A2 – Broken Authentication     | Session Fixation |
+| A3 – Sensitive Data Exposure   | MD5 비밀번호         |
+| A7 – Cross-Site Scripting      | Stored XSS       |
+| A5 – Security Misconfiguration | 에러 메시지 노출        |
+| A8 – CSRF                      | 폼 검증 미흡          |
+
 
 
