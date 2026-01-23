@@ -204,7 +204,7 @@ async def evaluate(request: Request):
     course_id = int(request.match_info['course_id'])
 
     data = await request.post()
-    raw_point = data.get('point')
+    raw_point = data.get('points')
 
     async with app['db'].acquire() as conn:
         student = await Student.get(conn, student_id)
@@ -234,6 +234,7 @@ async def evaluate(request: Request):
         await Mark.create(conn, student_id, course_id, point)
 
     raise HTTPFound(f'/courses/{course_id}')
+
 
 
 
