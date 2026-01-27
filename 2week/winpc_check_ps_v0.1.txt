@@ -1,0 +1,87 @@
+# ==============================
+# Windows PC Check v1.0 (PowerShell)
+# ==============================
+
+# 관리자 권한 체크
+$IsAdmin = ([Security.Principal.WindowsPrincipal] `
+    [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+if (-not $IsAdmin) {
+    Write-Host "[ERROR] Administrator privileges required." -ForegroundColor Red
+    exit 1
+}
+
+# 기본 경로
+$BaseDir = "C:\temp"
+$HostName = $env:COMPUTERNAME
+$TimeStamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$OutDir = Join-Path $BaseDir "$HostName`_$TimeStamp"
+
+New-Item -ItemType Directory -Path $OutDir -Force | Out-Null
+
+$ResultFile = Join-Path $OutDir "result.txt"
+
+"[점검] $HostName 시스템 점검결과" | Out-File $ResultFile -Encoding UTF8
+"점검 시작: $(Get-Date)" | Out-File $ResultFile -Append
+
+# 시스템 정보
+systeminfo | Out-File "$OutDir\systeminfo.txt"
+
+# 네트워크
+ipconfig /all | Out-File "$OutDir\ipconfig.txt"
+arp -a | Out-File "$OutDir\arp.txt"
+netstat -nao | Out-File "$OutDir\netstat.txt"
+
+# 프로세스
+Get-Process |
+    Sort-Object CPU -Descending |
+    Format-Table -AutoSize |
+    Out-File "$OutDir\tasklist.txt"
+
+# 서비스
+Get-Service |
+    Sort-Object Status, Name |
+    Format-Table -AutoSize |
+    Out-File "$OutDir\services.txt"
+
+# 자동 실행
+reg export "HKLM\Software\Microsoft\Windows\CurrentVersion\Run" "$OutDir\autorun_hklm.reg" /y | Out-Null
+reg export "HKCU\Software\Microsoft\Windows\CurrentVersion\Run" "$OutDir\autorun_hkcu.reg" /y | Out-Null
+
+# 사용자 / 공유
+net user | Out-File "$OutDir\users.txt"
+net share | Out-File "$OutDir\shares.txt"
+
+# hosts
+Get-Content "$env:windir\System32\drivers\etc\hosts" |
+    Out-File "$OutDir\hosts.txt"
+
+# 이벤트 로그
+Get-WinEvent -LogName System -MaxEvents 200 |
+    Format-List |
+    Out-File "$OutDir\event_system.txt"
+
+Get-WinEvent -LogName Security -MaxEvents 200 |
+    Format-List |
+    Out-File "$OutDir\event_security.txt"
+
+# ==============================
+# 비밀번호 정책
+# ==============================
+
+net accounts | Out-File "$OutDir\password_policy.txt"
+secedit /export /cfg "$OutDir\security_policy.inf" | Out-Null
+
+"" | Out-File $ResultFile -Append
+"==== Password Policy Summary ====" | Out-File $ResultFile -Append
+Get-Content "$OutDir\password_policy.txt" | Out-File $ResultFile -Append
+
+
+"점검 종료: $(Get-Date)" | Out-File $ResultFile -Append
+
+Write-Host ""
+Write-Host "====================================="
+Write-Host "Check Completed"
+Write-Host "Result Path: $OutDir"
+Write-Host "====================================="
