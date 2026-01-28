@@ -34,7 +34,7 @@ Write-Host "===================================="
 # -------------------------------
 # 타임라인 기록
 # -------------------------------
-"Inspection Start : $(Get-Date)" | Out-File "$OutDir\_start.txt"
+"PC Check Start : $(Get-Date)" | Out-File "$OutDir\_start.txt"
 
 # -------------------------------
 # 시스템 정보
@@ -100,9 +100,10 @@ Get-WinEvent -LogName Application -MaxEvents 300 | Out-File "$OutDir\event_appli
 # -------------------------------
 # 종료 기록
 # -------------------------------
-"Inspection End : $(Get-Date)" | Out-File "$OutDir\_end.txt"
+"PC Check End : $(Get-Date)" | Out-File "$OutDir\_end.txt"
 
 Write-Host "===================================="
 Write-Host "Inspection Complete"
 Write-Host "Result Path: $OutDir"
 Write-Host "===================================="
+
