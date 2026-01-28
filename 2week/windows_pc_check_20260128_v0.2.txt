@@ -1,0 +1,141 @@
+@echo off
+setlocal EnableExtensions EnableDelayedExpansion
+
+:: ==============================
+:: Windows PC Security Check v0.2
+:: ==============================
+
+:: 관리자 권한 체크
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo [ERROR] Administrator privileges required.
+    pause
+    exit /b 1
+)
+
+:: 기본 경로
+set BASEDIR=C:\temp
+set HOST=%COMPUTERNAME%
+
+:: 날짜/시간 포맷
+for /f "tokens=1-3 delims=/.- " %%a in ("%date%") do (
+    set YYYY=%%c
+    set MM=%%a
+    set DD=%%b
+)
+for /f "tokens=1-3 delims=:." %%a in ("%time%") do (
+    set HH=%%a
+    set MI=%%b
+    set SS=%%c
+)
+
+set TS=%YYYY%%MM%%DD%_%HH%%MI%%SS%
+set OUTDIR=%BASEDIR%\%HOST%_%TS%
+
+mkdir "%OUTDIR%" >nul 2>&1
+
+set RESULT=%OUTDIR%\result.txt
+echo [System Security Check Result] > "%RESULT%"
+echo Start Time: %date% %time% >> "%RESULT%"
+
+:: ==============================
+:: 시스템 정보
+:: ==============================
+systeminfo > "%OUTDIR%\systeminfo.txt"
+
+:: ==============================
+:: 네트워크 정보
+:: ==============================
+ipconfig /all > "%OUTDIR%\ipconfig.txt"
+arp -a > "%OUTDIR%\arp.txt"
+netstat -nao > "%OUTDIR%\netstat.txt"
+
+:: ==============================
+:: 프로세스 / 서비스
+:: ==============================
+tasklist /v > "%OUTDIR%\tasklist.txt"
+net start > "%OUTDIR%\services.txt"
+
+:: ==============================
+:: 자동 실행 레지스트리
+:: ==============================
+reg export HKLM\Software\Microsoft\Windows\CurrentVersion\Run "%OUTDIR%\autorun_hklm.reg" /y >nul
+reg export HKCU\Software\Microsoft\Windows\CurrentVersion\Run "%OUTDIR%\autorun_hkcu.reg" /y >nul
+
+:: ==============================
+:: 사용자 / 공유
+:: ==============================
+net user > "%OUTDIR%\users_raw.txt"
+net share > "%OUTDIR%\shares.txt"
+
+:: ==============================
+:: hosts 파일
+:: ==============================
+type "%windir%\System32\drivers\etc\hosts" > "%OUTDIR%\hosts.txt"
+
+:: ==============================
+:: 이벤트 로그
+:: ==============================
+wevtutil qe System /c:200 /rd:true /f:text > "%OUTDIR%\event_system.txt"
+wevtutil qe Security /c:200 /rd:true /f:text > "%OUTDIR%\event_security.txt"
+
+:: ==============================
+:: 비밀번호 정책
+:: ==============================
+net accounts > "%OUTDIR%\password_policy.txt"
+secedit /export /cfg "%OUTDIR%\security_policy.inf" >nul 2>&1
+
+echo. >> "%RESULT%"
+echo [Password Policy Summary] >> "%RESULT%"
+type "%OUTDIR%\password_policy.txt" >> "%RESULT%"
+
+:: ==============================
+:: 로컬 사용자 계정 상세 점검
+:: ==============================
+
+set USER_DETAIL=%OUTDIR%\user_account_detail.txt
+echo [Local User Account Detail] > "%USER_DETAIL%"
+echo Check Time: %date% %time% >> "%USER_DETAIL%"
+echo. >> "%USER_DETAIL%"
+
+:: 실제 사용자명만 정확히 추출
+for /f %%U in ('
+    net user ^
+    ^| findstr /R /V "^--- ^$ 명령이"
+') do (
+    call :USER_CHECK %%U
+)
+
+goto END
+
+:USER_CHECK
+set USERNAME=%1
+
+:: 존재하지 않는 계정 방어
+net user "%USERNAME%" >nul 2>&1 || exit /b
+
+echo ---------------------------------------- >> "%USER_DETAIL%"
+echo User Name: %USERNAME% >> "%USER_DETAIL%"
+
+:: 계정 상태 / 암호 정보
+for /f "tokens=1,* delims=:" %%a in ('net user "%USERNAME%" ^| findstr /i "Password expires Password last set Account active"') do (
+    echo %%a : %%b >> "%USER_DETAIL%"
+)
+
+:: 로컬 그룹 정보
+for /f "tokens=1,* delims=:" %%a in ('net user "%USERNAME%" ^| findstr /i "Local Group Memberships"') do (
+    echo %%a : %%b >> "%USER_DETAIL%"
+)
+
+echo. >> "%USER_DETAIL%"
+exit /b
+
+:END
+echo End Time: %date% %time% >> "%RESULT%"
+
+echo.
+echo =====================================
+echo Check Completed
+echo Result Path: %OUTDIR%
+echo =====================================
+pause
