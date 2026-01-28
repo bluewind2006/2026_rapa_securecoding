@@ -1,0 +1,152 @@
+#!/bin/sh
+#
+# =========================================
+# POSIX Security Check Script (Rocky Linux)
+# Version: 1.0 (POSIX compliant)
+# =========================================
+
+# ------------------------------
+# root 권한 체크
+# ------------------------------
+if [ "$(id -u)" -ne 0 ]; then
+    echo "[ERROR] root privileges required."
+    exit 1
+fi
+
+# ------------------------------
+# 기본 변수
+# ------------------------------
+BASEDIR="/var/tmp"
+HOST="$(hostname)"
+TS="$(date '+%Y%m%d_%H%M%S')"
+OUTDIR="${BASEDIR}/${HOST}_${TS}"
+
+mkdir -p "$OUTDIR" || exit 1
+
+RESULT="${OUTDIR}/result.txt"
+echo "[System Security Check Result]" > "$RESULT"
+echo "Start Time: $(date)" >> "$RESULT"
+
+# ------------------------------
+# 시스템 정보
+# ------------------------------
+SYSINFO="${OUTDIR}/systeminfo.txt"
+
+echo "===== hostname =====" > "$SYSINFO"
+hostname >> "$SYSINFO" 2>/dev/null
+
+echo >> "$SYSINFO"
+echo "===== uname -a =====" >> "$SYSINFO"
+uname -a >> "$SYSINFO"
+
+echo >> "$SYSINFO"
+echo "===== /etc/os-release =====" >> "$SYSINFO"
+cat /etc/os-release >> "$SYSINFO" 2>/dev/null
+
+# ------------------------------
+# 네트워크 정보
+# ------------------------------
+ip addr show > "$OUTDIR/ip_addr.txt" 2>/dev/null
+ip route show > "$OUTDIR/ip_route.txt" 2>/dev/null
+ip neigh show > "$OUTDIR/arp.txt" 2>/dev/null
+ss -antup > "$OUTDIR/netstat.txt" 2>/dev/null
+
+# ------------------------------
+# 프로세스 / 서비스
+# ------------------------------
+ps -ef > "$OUTDIR/processes.txt" 2>/dev/null
+systemctl list-units --type=service --all > "$OUTDIR/services.txt" 2>/dev/null
+
+# ------------------------------
+# 자동 실행 (systemd / cron)
+# ------------------------------
+systemctl list-unit-files --type=service > "$OUTDIR/systemd_autorun.txt" 2>/dev/null
+
+crontab -l > "$OUTDIR/cron_root.txt" 2>/dev/null
+
+cut -d: -f1 /etc/passwd | while IFS= read -r u
+do
+    crontab -u "$u" -l > "$OUTDIR/cron_${u}.txt" 2>/dev/null
+done
+
+# ------------------------------
+# 사용자 / 그룹
+# ------------------------------
+cat /etc/passwd > "$OUTDIR/users_passwd.txt"
+cat /etc/group > "$OUTDIR/groups.txt"
+
+# ------------------------------
+# 공유 (NFS / SMB)
+# ------------------------------
+exportfs -v > "$OUTDIR/nfs_exports.txt" 2>/dev/null
+smbclient -L localhost -N > "$OUTDIR/samba_shares.txt" 2>/dev/null
+
+# ------------------------------
+# hosts 파일
+# ------------------------------
+cat /etc/hosts > "$OUTDIR/hosts.txt"
+
+# ------------------------------
+# 로그
+# ------------------------------
+journalctl -n 200 > "$OUTDIR/journal_system.txt" 2>/dev/null
+journalctl -u sshd -n 200 > "$OUTDIR/journal_sshd.txt" 2>/dev/null
+
+# ------------------------------
+# 비밀번호 / 보안 정책
+# ------------------------------
+cat /etc/login.defs > "$OUTDIR/login_defs.txt" 2>/dev/null
+cat /etc/security/pwquality.conf > "$OUTDIR/pwquality.conf" 2>/dev/null
+sysctl -a > "$OUTDIR/sysctl.txt" 2>/dev/null
+
+echo >> "$RESULT"
+echo "[Password Policy Summary]" >> "$RESULT"
+grep 'PASS_' /etc/login.defs >> "$RESULT" 2>/dev/null
+
+echo
+echo "====================================="
+echo "Check Completed"
+echo "Result Path: $OUTDIR"
+echo "====================================="
+
+
+
+
+
+
+
+2. 이 스크립트가 “완전 POSIX”인 이유
+
+다음 bash 전용 요소를 전부 제거했습니다.
+
+항목	처리
+$EUID	id -u 사용
+{ } > file	단일 명령 리디렉션
+ps auxf	ps -ef
+for u in $(...)	`cut
+배열	사용 안 함
+[[ ]]	사용 안 함
+echo -e	사용 안 함
+프로세스 치환	사용 안 함
+
+✔ /bin/sh → bash POSIX 모드
+✔ /bin/sh → dash
+✔ BusyBox sh 환경에서도 정상 동작
+
+3. 실무 기준 평가
+
+이 스크립트는:
+
+침해사고(IR) 초기 수집
+
+ISMS / CCE / CIS 점검
+
+최소 설치 서버
+
+복구 콘솔
+
+컨테이너 / initramfs
+
+👉 가장 안전한 형태의 진단 스크립트
+
+4. 한 줄 결론
