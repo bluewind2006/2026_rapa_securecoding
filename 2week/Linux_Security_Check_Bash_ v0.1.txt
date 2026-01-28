@@ -1,0 +1,103 @@
+#!/bin/bash
+
+# ==============================
+# Rocky Linux Security Check v0.1
+# ==============================
+
+# root 권한 체크
+if [ "$EUID" -ne 0 ]; then
+    echo "[ERROR] root privileges required."
+    exit 1
+fi
+
+# 기본 경로
+BASEDIR="/tmp"
+HOST=$(hostname)
+
+# 타임스탬프
+TS=$(date +"%Y%m%d_%H%M%S")
+OUTDIR="${BASEDIR}/${HOST}_${TS}"
+
+mkdir -p "$OUTDIR"
+
+RESULT="${OUTDIR}/result.txt"
+echo "[System Security Check Result]" > "$RESULT"
+echo "Start Time: $(date)" >> "$RESULT"
+
+# ==============================
+# 시스템 정보
+# ==============================
+{
+    echo "===== hostnamectl ====="
+    hostnamectl
+    echo
+    echo "===== uname -a ====="
+    uname -a
+    echo
+    echo "===== OS Release ====="
+    cat /etc/os-release
+} > "$OUTDIR/systeminfo.txt"
+
+# ==============================
+# 네트워크 정보
+# ==============================
+ip addr show > "$OUTDIR/ip_addr.txt"
+ip route show > "$OUTDIR/ip_route.txt"
+ip neigh show > "$OUTDIR/arp.txt"
+ss -antup > "$OUTDIR/netstat.txt"
+
+# ==============================
+# 프로세스 / 서비스
+# ==============================
+ps auxf > "$OUTDIR/processes.txt"
+systemctl list-units --type=service --all > "$OUTDIR/services.txt"
+
+# ==============================
+# 자동 실행 (systemd / cron)
+# ==============================
+systemctl list-unit-files --type=service > "$OUTDIR/systemd_autorun.txt"
+
+crontab -l > "$OUTDIR/cron_root.txt" 2>/dev/null
+for u in $(cut -d: -f1 /etc/passwd); do
+    crontab -u "$u" -l > "$OUTDIR/cron_${u}.txt" 2>/dev/null
+done
+
+# ==============================
+# 사용자 / 그룹
+# ==============================
+cat /etc/passwd > "$OUTDIR/users_passwd.txt"
+cat /etc/group > "$OUTDIR/groups.txt"
+
+# ==============================
+# 공유 (NFS / SMB)
+# ==============================
+exportfs -v > "$OUTDIR/nfs_exports.txt" 2>/dev/null
+smbclient -L localhost -N > "$OUTDIR/samba_shares.txt" 2>/dev/null
+
+# ==============================
+# hosts 파일
+# ==============================
+cat /etc/hosts > "$OUTDIR/hosts.txt"
+
+# ==============================
+# 로그 (journal)
+# ==============================
+journalctl -n 200 > "$OUTDIR/journal_system.txt"
+journalctl -u sshd -n 200 > "$OUTDIR/journal_sshd.txt"
+
+# ==============================
+# 비밀번호 / 보안 정책
+# ==============================
+cat /etc/login.defs > "$OUTDIR/login_defs.txt"
+cat /etc/security/pwquality.conf > "$OUTDIR/pwquality.conf" 2>/dev/null
+sysctl -a > "$OUTDIR/sysctl.txt"
+
+echo >> "$RESULT"
+echo "[Password Policy Summary]" >> "$RESULT"
+grep -E "PASS_MAX_DAYS|PASS_MIN_DAYS|PASS_MIN_LEN" /etc/login.defs >> "$RESULT"
+
+echo
+echo "====================================="
+echo "Check Completed"
+echo "Result Path: $OUTDIR"
+echo "====================================="
